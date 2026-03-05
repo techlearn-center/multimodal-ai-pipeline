@@ -1,82 +1,52 @@
-# Capstone Project: Multimodal AI Pipeline: Zero to Hero
+# Capstone: Production Multimodal Document Intelligence Platform
 
 ## Overview
-
-This capstone project combines everything you learned across all 10 modules into a single, production-grade implementation. This is the project you will showcase to hiring managers.
-
-## The Challenge
-
-Build a complete, end-to-end solution that demonstrates:
-
-1. **Fundamentals** (Modules 01-03): Proper setup, configuration, and basic operations
-2. **Intermediate Skills** (Modules 04-06): Integration, automation, and optimization
-3. **Advanced Patterns** (Modules 07-09): Security, testing, and production patterns
-4. **Production Readiness** (Module 10): Monitoring, scaling, and reliability
-
-## Requirements
-
-### Must Have
-- [ ] All core components deployed and working
-- [ ] Automated setup/deployment process
-- [ ] Security best practices implemented
-- [ ] Monitoring and health checks configured
-- [ ] Documentation for the entire system
-- [ ] Validation script passes all checks
-
-### Nice to Have
-- [ ] CI/CD pipeline for the solution
-- [ ] Cost optimization considerations
-- [ ] Disaster recovery plan
-- [ ] Performance benchmarks
-
-## Getting Started
-
-```bash
-# Review the requirements
-cat capstone/requirements.md
-
-# Start with the starter files
-ls capstone/starter/
-
-# When done, validate your work
-bash capstone/validation/validate.sh
-```
+Build a complete document intelligence system that processes PDFs, images, and text documents using multimodal AI, stores them in a vector database, and provides a natural language query interface.
 
 ## Architecture
+```
+Client --> FastAPI --> [Upload Handler] --> File Classifier
+                                              |
+                              +---------------+---------------+
+                              |               |               |
+                         ImageProcessor  DocProcessor    Whisper
+                              |               |               |
+                              v               v               v
+                           Embedder -----> ChromaDB <----- Embedder
+                              |
+                              v
+                      RAG Query Engine --> LLM --> Response with Citations
+```
 
-Design your solution to be:
-- **Reliable** - Handles failures gracefully
-- **Secure** - Follows security best practices
-- **Observable** - Logs, metrics, and traces
-- **Automated** - Minimal manual steps
-- **Documented** - Others can understand and maintain it
+## Requirements
+1. **Document Ingestion**: Upload PDFs, images, and text files via REST API
+2. **Multimodal Processing**: Extract text via OCR, generate image captions, chunk and embed all content
+3. **Vector Storage**: Store in ChromaDB with metadata (source, type, page number, chunk ID)
+4. **RAG Query API**: Answer questions using retrieved multimodal context with source citations
+5. **Evaluation Dashboard**: Track pipeline quality metrics (caption quality, retrieval precision, latency)
+6. **Dockerized Deployment**: All services run via `docker compose up`
 
-## Evaluation Criteria
+## Acceptance Criteria
+- [ ] API accepts PDF, image, and text uploads at `/api/upload`
+- [ ] Documents are automatically classified and processed
+- [ ] Processed content stored in ChromaDB with proper metadata
+- [ ] RAG queries return relevant answers with source citations
+- [ ] Evaluation endpoint returns quality metrics
+- [ ] Health check at `/health` returns service status
+- [ ] All services start with `docker compose up`
+- [ ] API documentation available at `/docs`
+- [ ] Handles errors gracefully (invalid files, API failures)
+- [ ] Processing latency < 30s for standard documents
 
-Your capstone will be evaluated on:
+## Getting Started
+```bash
+cd capstone/starter
+cp ../../.env.example .env
+# Edit .env with your API keys
+docker compose up -d
+```
 
-| Criteria | Weight | Description |
-|---|---|---|
-| **Functionality** | 30% | Does it work correctly? |
-| **Architecture** | 20% | Is the design clean and scalable? |
-| **Security** | 15% | Are best practices followed? |
-| **Automation** | 15% | How much is automated? |
-| **Documentation** | 10% | Can someone else understand it? |
-| **Code Quality** | 10% | Is the code clean and maintainable? |
-
-## Solution
-
-The `solution/` directory contains a reference implementation. Try to complete the capstone yourself first - that is what builds real skills and interview confidence.
-
-## Showcasing to Hiring Managers
-
-When you complete this capstone:
-
-1. **Fork this repo** to your personal GitHub
-2. **Add your solution** with detailed commit messages
-3. **Update the README** with your architecture decisions
-4. **Record a demo video** (optional but impressive)
-5. **Reference it on your resume** and LinkedIn
-6. **Be ready to demo it** in technical interviews
-
-See [docs/portfolio-guide.md](../docs/portfolio-guide.md) for detailed guidance.
+## Validation
+```bash
+bash capstone/validation/validate.sh
+```

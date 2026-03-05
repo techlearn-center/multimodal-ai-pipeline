@@ -1,185 +1,78 @@
-# Module 03: Document Processing and OCR
+# Module 03: Document Processing
 
 | | |
 |---|---|
 | **Time** | 3-5 hours |
-| **Difficulty** | Beginner |
+| **Difficulty** | Intermediate |
 | **Prerequisites** | Module 02 completed |
 
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Document Processing and OCR
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Extract text and structure from PDFs
+- Chunk documents for RAG with different strategies
+- Handle multi-format documents (PDF, DOCX, images)
 
 ---
 
-## Concepts
+## 1. PDF Processing
 
-### What is Document Processing and OCR?
+```python
+from src.processors.document_processor import DocumentProcessor
 
-Document Processing and OCR is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+processor = DocumentProcessor()
+result = processor.process_pdf("data/documents/sample.pdf")
 
-**Real-world analogy:** Think of Document Processing and OCR like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
+print(f"Pages: {result['num_pages']}")
+for page in result['pages']:
+    print(f"Page {page['page_number']}: {page['char_count']} chars")
+    print(page['text'][:200])
+```
 
-### Why Does This Matter?
+### Advanced: Unstructured Library
+```python
+from unstructured.partition.pdf import partition_pdf
 
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+elements = partition_pdf(
+    filename="data/documents/report.pdf",
+    strategy="hi_res",
+    infer_table_structure=True,
+)
+for element in elements:
+    print(f"Type: {type(element).__name__}, Text: {str(element)[:100]}")
+```
 
 ---
 
-## Hands-On Lab
+## 2. Chunking Strategies
 
-### Prerequisites Check
+| Strategy | Best For | Chunk Quality | Speed |
+|----------|---------|---------------|-------|
+| Fixed-size | Simple text | Low | Fast |
+| Header-based | Structured docs | High | Fast |
+| Recursive | General-purpose | Medium-High | Fast |
+| Semantic | Mixed content | Highest | Slow |
 
-Before starting, verify your environment:
+```python
+# Recursive (best general-purpose)
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/03-document-processing/
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000, chunk_overlap=200,
+    separators=["\n\n", "\n", ". ", " ", ""],
+)
+chunks = splitter.split_text(full_text)
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Hands-On Lab
 
-**Step 1:** Review the starter files
+Build a pipeline: PDF upload -> text extraction -> chunking -> ChromaDB storage.
+
+## Validation
 ```bash
-ls modules/03-document-processing/lab/starter/
-```
-
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/03-document-processing/lab/starter/
-```
-
-**Step 3:** Verify the setup
-```bash
-# Run the validation to check your setup
 bash modules/03-document-processing/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Document Processing and OCR?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/03-document-processing/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Module 04 →](../04-video-analysis/)**

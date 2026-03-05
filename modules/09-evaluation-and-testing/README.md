@@ -9,177 +9,93 @@
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Evaluation and Testing
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Evaluate multimodal pipeline quality with LLM-as-judge
+- Measure latency and throughput
+- Build automated evaluation suites
 
 ---
 
-## Concepts
+## 1. LLM-as-Judge Evaluation
 
-### What is Evaluation and Testing?
+```python
+from openai import OpenAI
+import json
 
-Evaluation and Testing is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+client = OpenAI()
 
-**Real-world analogy:** Think of Evaluation and Testing like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
+def evaluate_caption(generated: str, reference: str) -> dict:
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "Rate the caption on accuracy (1-5), completeness (1-5), fluency (1-5). Return JSON with scores and explanation."},
+            {"role": "user", "content": f"Generated: {generated}\nReference: {reference}"},
+        ],
+        response_format={"type": "json_object"},
+    )
+    return json.loads(response.choices[0].message.content)
 
-### Why Does This Matter?
-
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+scores = evaluate_caption(
+    "A tall iron tower in Paris at sunset",
+    "The Eiffel Tower illuminated at sunset with golden light reflecting off the Seine River"
+)
+print(f"Accuracy: {scores['accuracy']}/5, Completeness: {scores['completeness']}/5")
+```
 
 ---
 
-## Hands-On Lab
+## 2. Retrieval Evaluation
 
-### Prerequisites Check
-
-Before starting, verify your environment:
-
-```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/09-evaluation-and-testing/
+```python
+def evaluate_retrieval(questions, expected_sources, rag):
+    metrics = {"precision": 0, "recall": 0}
+    for q, expected in zip(questions, expected_sources):
+        results = rag.query(q)
+        retrieved = [r["metadata"].get("source", "") for r in results]
+        hits = sum(1 for e in expected if e in retrieved)
+        metrics["precision"] += hits / len(retrieved) if retrieved else 0
+        metrics["recall"] += hits / len(expected) if expected else 0
+    n = len(questions)
+    return {k: v / n for k, v in metrics.items()}
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Latency Benchmarking
 
-**Step 1:** Review the starter files
-```bash
-ls modules/09-evaluation-and-testing/lab/starter/
+```python
+import time
+
+def benchmark(func, *args, n_runs=10):
+    times = []
+    for _ in range(n_runs):
+        start = time.time()
+        func(*args)
+        times.append(time.time() - start)
+    times.sort()
+    return {
+        "avg_ms": sum(times) / len(times) * 1000,
+        "p50_ms": times[len(times) // 2] * 1000,
+        "p95_ms": times[int(len(times) * 0.95)] * 1000,
+        "min_ms": times[0] * 1000,
+        "max_ms": times[-1] * 1000,
+    }
+
+# Example
+from src.processors.image_processor import ImageProcessor
+proc = ImageProcessor()
+results = benchmark(proc.caption, "data/images/test.jpg", n_runs=5)
+print(f"Caption latency: avg={results['avg_ms']:.0f}ms, p95={results['p95_ms']:.0f}ms")
 ```
 
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/09-evaluation-and-testing/lab/starter/
-```
+---
 
-**Step 3:** Verify the setup
+## 4. Hands-On Lab
+
+Build an evaluation suite: LLM-as-judge for captions, retrieval metrics for RAG, latency benchmarks.
+
+## Validation
 ```bash
-# Run the validation to check your setup
 bash modules/09-evaluation-and-testing/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Evaluation and Testing?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/09-evaluation-and-testing/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Module 10 →](../10-production-deployment/)**

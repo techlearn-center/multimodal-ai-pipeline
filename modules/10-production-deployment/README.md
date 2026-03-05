@@ -9,177 +9,112 @@
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Production Deployment
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Deploy multimodal pipeline with Docker Compose
+- Add health checks, rate limiting, and monitoring
+- Scale with async processing and queues
 
 ---
 
-## Concepts
+## 1. Production Docker Compose
 
-### What is Production Deployment?
+```yaml
+services:
+  app:
+    build: .
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
 
-Production Deployment is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+  chromadb:
+    image: chromadb/chroma:latest
+    restart: always
+    volumes:
+      - chroma-data:/chroma/chroma
 
-**Real-world analogy:** Think of Production Deployment like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
-
-### Why Does This Matter?
-
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+  redis:
+    image: redis:7-alpine
+    restart: always
+```
 
 ---
 
-## Hands-On Lab
+## 2. Rate Limiting
 
-### Prerequisites Check
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-Before starting, verify your environment:
+limiter = Limiter(key_func=get_remote_address)
 
-```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/10-production-deployment/
+@app.post("/api/image/caption")
+@limiter.limit("10/minute")
+async def caption_image(request: Request, file: UploadFile = File(...)):
+    ...
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Async Processing with Redis Queues
 
-**Step 1:** Review the starter files
-```bash
-ls modules/10-production-deployment/lab/starter/
+```python
+import redis
+import json
+
+r = redis.Redis(host="redis", port=6379)
+
+def enqueue_processing(file_path: str, task_type: str):
+    task_id = r.incr("task_counter")
+    task = {"file_path": file_path, "type": task_type, "status": "pending"}
+    r.set(f"task:{task_id}", json.dumps(task))
+    r.lpush("processing_queue", task_id)
+    return task_id
+
+def worker():
+    """Background worker that processes queued tasks."""
+    while True:
+        _, task_id = r.brpop("processing_queue")
+        task = json.loads(r.get(f"task:{task_id}"))
+        task["status"] = "processing"
+        r.set(f"task:{task_id}", json.dumps(task))
+        # Process based on type...
+        task["status"] = "completed"
+        r.set(f"task:{task_id}", json.dumps(task))
 ```
 
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/10-production-deployment/lab/starter/
+---
+
+## 4. Monitoring with Prometheus
+
+```python
+from prometheus_client import Counter, Histogram
+import time
+
+REQUEST_COUNT = Counter("requests_total", "Total requests", ["endpoint"])
+LATENCY = Histogram("request_latency_seconds", "Request latency", ["endpoint"])
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    LATENCY.labels(request.url.path).observe(time.time() - start)
+    REQUEST_COUNT.labels(request.url.path).inc()
+    return response
 ```
 
-**Step 3:** Verify the setup
+---
+
+## 5. Hands-On Lab
+
+Deploy the full pipeline with health checks, rate limiting, Redis queues, and Prometheus metrics.
+
+## Validation
 ```bash
-# Run the validation to check your setup
 bash modules/10-production-deployment/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Production Deployment?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/10-production-deployment/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Capstone Project →](../../capstone/)**

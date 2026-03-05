@@ -1,0 +1,19 @@
+image_processing:
+  model: "gpt-4o"
+  max_image_size: 2048
+  supported_formats: ["jpg", "jpeg", "png", "gif", "webp"]
+  detail_level: "auto"
+document_processing:
+  chunk_size: 1000
+  chunk_overlap: 200
+  supported_formats: ["pdf", "docx", "txt", "md"]
+  ocr_enabled: true
+embedding:
+  model: "text-embedding-3-small"
+  dimensions: 1536
+vector_store:
+  provider: "chromadb"
+  host: "localhost"
+  port: 8001
+  collection: "multimodal_docs"
+  distance_metric: "cosine"

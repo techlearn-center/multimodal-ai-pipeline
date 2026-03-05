@@ -1,4 +1,4 @@
-# Module 05: Audio Transcription and Processing
+# Module 05: Audio Transcription
 
 | | |
 |---|---|
@@ -9,177 +9,87 @@
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Audio Transcription and Processing
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Transcribe audio using OpenAI Whisper API
+- Handle multiple languages and translation
+- Build a meeting notes pipeline with timestamps
 
 ---
 
-## Concepts
+## 1. Whisper Transcription
 
-### What is Audio Transcription and Processing?
+```python
+from openai import OpenAI
+client = OpenAI()
 
-Audio Transcription and Processing is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+with open("data/audio/meeting.mp3", "rb") as f:
+    transcript = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=f,
+        response_format="verbose_json",
+        timestamp_granularities=["segment"],
+    )
 
-**Real-world analogy:** Think of Audio Transcription and Processing like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
-
-### Why Does This Matter?
-
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+for segment in transcript.segments:
+    print(f"[{segment.start:.1f}s - {segment.end:.1f}s] {segment.text}")
+```
 
 ---
 
-## Hands-On Lab
+## 2. Translation
 
-### Prerequisites Check
-
-Before starting, verify your environment:
-
-```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/05-audio-transcription/
+```python
+with open("data/audio/spanish.mp3", "rb") as f:
+    translation = client.audio.translations.create(model="whisper-1", file=f)
+print(translation.text)  # Always returns English
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Meeting Notes Pipeline
 
-**Step 1:** Review the starter files
-```bash
-ls modules/05-audio-transcription/lab/starter/
+```python
+def process_meeting(audio_path: str) -> dict:
+    client = OpenAI()
+    with open(audio_path, "rb") as f:
+        transcript = client.audio.transcriptions.create(model="whisper-1", file=f)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "Extract: Summary, Key Decisions, Action Items (who/what/deadline), Open Questions."},
+            {"role": "user", "content": transcript.text},
+        ],
+    )
+    return {"transcript": transcript.text, "notes": response.choices[0].message.content}
 ```
 
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/05-audio-transcription/lab/starter/
+---
+
+## 4. Handling Large Files
+
+```python
+from pydub import AudioSegment
+
+def split_audio(audio_path: str, chunk_minutes: int = 10):
+    audio = AudioSegment.from_file(audio_path)
+    chunk_ms = chunk_minutes * 60 * 1000
+    chunks = []
+    for i in range(0, len(audio), chunk_ms):
+        chunk_path = f"/tmp/chunk_{i // chunk_ms}.mp3"
+        audio[i:i + chunk_ms].export(chunk_path, format="mp3")
+        chunks.append(chunk_path)
+    return chunks
 ```
 
-**Step 3:** Verify the setup
+---
+
+## 5. Hands-On Lab
+
+Build a meeting transcription service: audio upload, auto-split, transcribe with timestamps, generate structured notes.
+
+## Validation
 ```bash
-# Run the validation to check your setup
 bash modules/05-audio-transcription/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Audio Transcription and Processing?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/05-audio-transcription/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Module 06 →](../06-multimodal-rag/)**

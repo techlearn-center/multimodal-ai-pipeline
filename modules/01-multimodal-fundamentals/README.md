@@ -4,182 +4,174 @@
 |---|---|
 | **Time** | 3-5 hours |
 | **Difficulty** | Beginner |
-| **Prerequisites** | Docker installed, basic terminal knowledge |
+| **Prerequisites** | Python 3.10+, Docker, OpenAI API key |
 
 ---
 
 ## Learning Objectives
 
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Multimodal AI Fundamentals
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+By the end of this module, you will:
+- Understand what multimodal AI is and why it matters
+- Know key architectures (CLIP, LLaVA, GPT-4V, Gemini)
+- Set up your development environment with Docker
+- Make your first multimodal API call
 
 ---
 
-## Concepts
+## 1. What is Multimodal AI?
 
-### What is Multimodal AI Fundamentals?
+Multimodal AI processes **multiple types of input** (text, images, audio, video) in a single model. Unlike traditional AI that handles one modality at a time, multimodal models understand relationships across modalities.
 
-Multimodal AI Fundamentals is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+### Key Architectures
 
-**Real-world analogy:** Think of Multimodal AI Fundamentals like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
+| Model | Modalities | Approach | When to Use |
+|-------|-----------|----------|-------------|
+| CLIP (OpenAI) | Image + Text | Contrastive learning, shared embedding space | Image search, zero-shot classification |
+| LLaVA | Image + Text | Vision encoder + LLM decoder | Self-hosted visual QA |
+| GPT-4V / GPT-4o | Image + Text + Audio | Native multimodal transformer | Highest quality, commercial use |
+| Gemini | Image + Text + Audio + Video | Native multimodal | Video understanding, long context |
+| Whisper | Audio to Text | Encoder-decoder for speech | Transcription, translation |
 
-### Why Does This Matter?
-
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+### Why Multimodal Matters for Production
+- **Document understanding**: Process invoices, contracts, receipts automatically
+- **Visual QA**: Answer questions about images and diagrams
+- **Video analysis**: Summarize, search, and understand video content
+- **Accessibility**: Audio descriptions, transcription, translation
 
 ---
 
-## Hands-On Lab
+## 2. Environment Setup
 
-### Prerequisites Check
-
-Before starting, verify your environment:
-
+### Step 1: Clone and configure
 ```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/01-multimodal-fundamentals/
+cd multimodal-ai-pipeline
+cp .env.example .env
+# Edit .env with your actual API keys
+nano .env
 ```
 
-### Exercise 1: Setup and Configuration
-
-**Goal:** Get the foundation in place for this module.
-
-**Step 1:** Review the starter files
+### Step 2: Start all services
 ```bash
-ls modules/01-multimodal-fundamentals/lab/starter/
+docker compose up -d
 ```
 
-**Step 2:** Set up the required environment
+### Step 3: Verify services
 ```bash
-# Follow the specific setup for this module
-# Each command is explained below
+# Check API
+curl http://localhost:8000/health
+# Expected: {"status":"healthy","service":"multimodal-pipeline"}
+
+# Check ChromaDB
+curl http://localhost:8001/api/v1/heartbeat
+# Expected: {"nanosecond heartbeat": ...}
+```
+
+### Step 4: Test the image processor
+```bash
+# Download a test image
+curl -o data/images/test.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg"
+
+# Run the processor
+docker compose exec app python -m src.processors.image_processor data/images/test.jpg
+```
+
+**Expected Output:**
+```
+=== Caption ===
+The image shows a close-up photograph of an ant...
+
+=== Extracted Text ===
+No visible text found in this image.
+```
+
+---
+
+## 3. Your First Multimodal API Call
+
+### Using the OpenAI Vision API
+
+```python
+from openai import OpenAI
+import base64
+
+client = OpenAI()
+
+# Method 1: URL-based image
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What is in this image?"},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg"
+                },
+            },
+        ],
+    }],
+    max_tokens=300,
+)
+print(response.choices[0].message.content)
+
+# Method 2: Base64-encoded local image
+with open("data/images/test.jpg", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe this image in detail."},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+        ],
+    }],
+)
+print(response.choices[0].message.content)
+```
+
+### Image Detail Levels
+
+| Detail Level | Tokens Used | Best For |
+|-------------|-------------|----------|
+| `low` | 85 tokens | Quick classification, yes/no questions |
+| `high` | 85-1105 tokens | OCR, detailed analysis, small text |
+| `auto` | Varies | Let the model decide (recommended default) |
+
+---
+
+## 4. Hands-On Lab
+
+### Task: Build an Image Comparison Tool
+
+Create a script that takes two images and produces a structured comparison.
+
+```bash
 cd modules/01-multimodal-fundamentals/lab/starter/
+# Complete the TODO sections in compare_images.py
 ```
 
-**Step 3:** Verify the setup
+Your tool should:
+1. Load and encode both images to base64
+2. Send them to GPT-4o in a single request
+3. Return a structured comparison covering similarities, differences, content, and style
+
+### Validation
 ```bash
-# Run the validation to check your setup
 bash modules/01-multimodal-fundamentals/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
 
 ---
 
 ## Self-Check Questions
 
-Test your understanding before moving on:
-
-1. What is the main purpose of Multimodal AI Fundamentals?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
+1. What is the difference between CLIP and GPT-4o for image understanding?
+2. When would you use base64 encoding vs URL for images?
+3. How do detail levels affect cost and quality?
+4. What are the token costs of including images in API calls?
 
 ---
 
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/01-multimodal-fundamentals/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
-
-**Next: [Module 02 →](../02-image-understanding/)**
+**Next: [Module 02 - Image Understanding →](../02-image-understanding/)**

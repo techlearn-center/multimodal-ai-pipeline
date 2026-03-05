@@ -9,177 +9,96 @@
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Vision-Language Models
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Understand CLIP, LLaVA, and open-source VLMs
+- Use CLIP embeddings for image search
+- Compare commercial vs open-source options
 
 ---
 
-## Concepts
+## 1. CLIP Embeddings
 
-### What is Vision-Language Models?
+```python
+from transformers import CLIPProcessor, CLIPModel
+from PIL import Image
 
-Vision-Language Models is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
-**Real-world analogy:** Think of Vision-Language Models like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
+# Image-text similarity scoring
+image = Image.open("data/images/cat.jpg")
+inputs = processor(
+    text=["a photo of a cat", "a photo of a dog", "a photo of a car"],
+    images=image,
+    return_tensors="pt",
+    padding=True,
+)
+outputs = model(**inputs)
+probs = outputs.logits_per_image.softmax(dim=1)
+print(f"Cat: {probs[0][0]:.2%}, Dog: {probs[0][1]:.2%}, Car: {probs[0][2]:.2%}")
+```
 
-### Why Does This Matter?
+### Building an Image Search Engine
+```python
+import torch
 
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
+def build_image_index(image_dir: str):
+    images = list(Path(image_dir).glob("*.jpg"))
+    embeddings = []
+    for img_path in images:
+        image = Image.open(img_path)
+        inputs = processor(images=image, return_tensors="pt")
+        with torch.no_grad():
+            emb = model.get_image_features(**inputs)
+        embeddings.append(emb.squeeze().numpy())
+    return images, embeddings
 
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+def search_images(query: str, images, embeddings, top_k=5):
+    inputs = processor(text=[query], return_tensors="pt", padding=True)
+    with torch.no_grad():
+        text_emb = model.get_text_features(**inputs)
+    similarities = [torch.cosine_similarity(text_emb, torch.tensor(e).unsqueeze(0)).item() for e in embeddings]
+    ranked = sorted(zip(images, similarities), key=lambda x: x[1], reverse=True)
+    return ranked[:top_k]
+```
 
 ---
 
-## Hands-On Lab
+## 2. LLaVA (Open-Source Vision-Language Model)
 
-### Prerequisites Check
+```python
+from transformers import AutoProcessor, LlavaForConditionalGeneration
 
-Before starting, verify your environment:
+model = LlavaForConditionalGeneration.from_pretrained("llava-hf/llava-1.5-7b-hf")
+processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
 
-```bash
-# Check Docker is running
-docker --version
-docker compose version
-
-# Check you have the project cloned
-ls modules/07-vision-language-models/
+image = Image.open("data/images/diagram.png")
+prompt = "USER: <image>\nDescribe this diagram in detail.\nASSISTANT:"
+inputs = processor(prompt, image, return_tensors="pt")
+output = model.generate(**inputs, max_new_tokens=200)
+print(processor.decode(output[0], skip_special_tokens=True))
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Comparison
 
-**Step 1:** Review the starter files
+| Feature | GPT-4o | Gemini Pro | LLaVA 1.5 | CLIP |
+|---------|--------|-----------|-----------|------|
+| Hosted | Yes | Yes | Self-hosted | Self-hosted |
+| Cost | Per token | Per token | GPU cost | GPU cost |
+| Quality | Highest | High | Good | Embeddings only |
+| Latency | ~2-5s | ~1-3s | ~5-15s | ~0.1s |
+| Privacy | Data sent to API | Data sent to API | Full privacy | Full privacy |
+
+---
+
+## 4. Hands-On Lab
+
+Build a hybrid image search: CLIP for fast retrieval, GPT-4o for detailed analysis of top results.
+
+## Validation
 ```bash
-ls modules/07-vision-language-models/lab/starter/
-```
-
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/07-vision-language-models/lab/starter/
-```
-
-**Step 3:** Verify the setup
-```bash
-# Run the validation to check your setup
 bash modules/07-vision-language-models/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Vision-Language Models?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/07-vision-language-models/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Module 08 →](../08-pipeline-orchestration/)**

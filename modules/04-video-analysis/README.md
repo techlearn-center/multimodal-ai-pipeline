@@ -1,4 +1,4 @@
-# Module 04: Video Analysis and Frame Extraction
+# Module 04: Video Analysis
 
 | | |
 |---|---|
@@ -9,177 +9,103 @@
 ---
 
 ## Learning Objectives
-
-By the end of this module, you will be able to:
-
-- Understand the core concepts of Video Analysis and Frame Extraction
-- Set up and configure the required tools and environments
-- Complete hands-on exercises that demonstrate practical skills
-- Apply these skills in real-world scenarios
-- Pass the module validation to prove your understanding
+- Extract frames from videos at configurable intervals
+- Analyze video content using vision models
+- Build a video summarization pipeline
+- Detect scenes and key moments
 
 ---
 
-## Concepts
+## 1. Frame Extraction
 
-### What is Video Analysis and Frame Extraction?
+```python
+import cv2
 
-Video Analysis and Frame Extraction is a fundamental component of Multimodal AI Pipeline: Zero to Hero. In production environments, this skill is used daily by engineers to build, deploy, and maintain reliable systems.
-
-**Real-world analogy:** Think of Video Analysis and Frame Extraction like learning to read a map before navigating a city. Once you understand the fundamentals, you can find your way through any complex system.
-
-### Why Does This Matter?
-
-Companies like Google, Netflix, Amazon, and Meta rely on these practices to:
-- Deploy thousands of times per day
-- Maintain 99.99% uptime
-- Scale to millions of users
-- Recover from failures in minutes
-
-### Key Terminology
-
-| Term | Definition |
-|---|---|
-| **Core concept 1** | The foundational building block of this module |
-| **Core concept 2** | How components interact and communicate |
-| **Core concept 3** | The pattern used for reliability and scale |
-| **Best practice** | The industry-standard approach to implementation |
+def extract_frames(video_path: str, interval_seconds: int = 5):
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_interval = int(fps * interval_seconds)
+    frames = []
+    count = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if count % frame_interval == 0:
+            frames.append({"frame": frame, "timestamp": count / fps, "frame_number": count})
+        count += 1
+    cap.release()
+    return frames
+```
 
 ---
 
-## Hands-On Lab
+## 2. Video Summarization
 
-### Prerequisites Check
+```python
+from src.processors.image_processor import ImageProcessor
+import cv2, tempfile
 
-Before starting, verify your environment:
+processor = ImageProcessor()
+frames = extract_frames("data/videos/demo.mp4", interval_seconds=10)
 
-```bash
-# Check Docker is running
-docker --version
-docker compose version
+captions = []
+for f in frames:
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        cv2.imwrite(tmp.name, f["frame"])
+        caption = processor.caption(tmp.name)
+        captions.append({"timestamp": f["timestamp"], "caption": caption})
 
-# Check you have the project cloned
-ls modules/04-video-analysis/
+# Combine into summary
+from openai import OpenAI
+client = OpenAI()
+timeline = "\n".join([f"[{c['timestamp']:.0f}s] {c['caption']}" for c in captions])
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "Summarize this video based on frame descriptions."},
+        {"role": "user", "content": timeline},
+    ],
+)
+print(response.choices[0].message.content)
 ```
 
-### Exercise 1: Setup and Configuration
+---
 
-**Goal:** Get the foundation in place for this module.
+## 3. Scene Detection
 
-**Step 1:** Review the starter files
-```bash
-ls modules/04-video-analysis/lab/starter/
+```python
+import numpy as np
+
+def detect_scene_changes(video_path: str, threshold: float = 30.0):
+    cap = cv2.VideoCapture(video_path)
+    prev_hist = None
+    scenes = []
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+        hist = cv2.normalize(hist, hist).flatten()
+        if prev_hist is not None:
+            diff = cv2.compareHist(prev_hist, hist, cv2.HISTCMP_CHISQR)
+            if diff > threshold:
+                scenes.append({"timestamp": cap.get(cv2.CAP_PROP_POS_MSEC) / 1000, "diff_score": diff})
+        prev_hist = hist
+    cap.release()
+    return scenes
 ```
 
-**Step 2:** Set up the required environment
-```bash
-# Follow the specific setup for this module
-# Each command is explained below
-cd modules/04-video-analysis/lab/starter/
-```
+---
 
-**Step 3:** Verify the setup
+## 4. Hands-On Lab
+
+Build a video analysis pipeline: frame extraction, scene detection, frame captioning, timestamped summary.
+
+## Validation
 ```bash
-# Run the validation to check your setup
 bash modules/04-video-analysis/validation/validate.sh
 ```
-
-**What you should see:** The validation script will show PASS for setup-related checks.
-
-### Exercise 2: Core Implementation
-
-**Goal:** Implement the main concept of this module.
-
-Follow the detailed instructions in the starter directory. The solution directory contains the reference implementation if you get stuck.
-
-**Key points:**
-- Read each instruction carefully before executing
-- Understand WHY each step is needed, not just WHAT to do
-- If something fails, check the troubleshooting section below
-
-### Exercise 3: Integration and Testing
-
-**Goal:** Connect this module's work with the broader system.
-
-- Verify your implementation works with previous modules
-- Run all tests and validation scripts
-- Document what you learned
-
----
-
-## Starter Files
-
-Check `lab/starter/` for:
-- Configuration templates to fill in
-- Skeleton code to complete
-- Setup scripts to run
-
-## Solution Files
-
-If you get stuck, `lab/solution/` contains:
-- Complete working configuration
-- Fully implemented code
-- Expected output examples
-
-> **Important:** Try to complete the exercises yourself first! Looking at solutions too early reduces learning.
-
----
-
-## Common Mistakes
-
-| Mistake | Symptom | Fix |
-|---|---|---|
-| Skipping prerequisites | Module exercises fail | Complete previous modules first |
-| Copy-pasting without understanding | Cannot troubleshoot issues | Read explanations, not just commands |
-| Not checking validation | Think you are done but are not | Run validate.sh after each exercise |
-| Ignoring error messages | Problems compound | Read errors carefully, they tell you what is wrong |
-
----
-
-## Self-Check Questions
-
-Test your understanding before moving on:
-
-1. What is the main purpose of Video Analysis and Frame Extraction?
-2. How does this connect to the previous module?
-3. What would happen in production without this?
-4. Can you explain this concept to a non-technical person?
-5. What are three things that could go wrong, and how would you fix them?
-
----
-
-## You Know You Have Completed This Module When...
-
-- [ ] All exercises completed
-- [ ] Validation script passes: `bash modules/04-video-analysis/validation/validate.sh`
-- [ ] You can explain the concepts without looking at notes
-- [ ] You understand how this applies to real-world scenarios
-- [ ] Self-check questions answered confidently
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue: Validation script fails**
-- Re-read the exercise instructions
-- Check that Docker containers are running
-- Verify you are in the correct directory
-- Compare your work with the solution files
-
-**Issue: Docker container not starting**
-```bash
-docker compose logs <service-name>  # Check logs
-docker compose down && docker compose up -d  # Restart
-```
-
-**Issue: Permission denied**
-```bash
-chmod +x validation/validate.sh  # Make script executable
-sudo chown -R $USER .           # Fix ownership (Linux)
-```
-
----
 
 **Next: [Module 05 →](../05-audio-transcription/)**
